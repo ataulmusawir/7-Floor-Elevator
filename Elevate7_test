@@ -1,0 +1,80 @@
+module Elevate7_tb;
+
+    // Testbench signals
+    reg clk;
+    reg reset;
+    reg emergency_stop;
+    reg [2:0] FLRCALL;
+    wire [1:0] door;
+    wire [2:0] max_request;
+    wire [2:0] min_request;
+    wire [1:0] Up;
+    wire [1:0] Down;
+    wire [1:0] idle;
+    wire [2:0] FLR;
+    wire [6:0] requests;
+
+    // Instantiate the Lift7 module
+    Elevate7 uut (
+        .clk(clk),
+        .reset(reset),
+        .emergency_stop(emergency_stop),
+        .FLRCALL(FLRCALL),                                                 
+        .door(door),
+        .max_request(max_request),
+        .min_request(min_request),
+        .Up(Up),
+        .Down(Down),
+        .idle(idle),
+        .FLR(FLR),
+        .requests(requests)
+    );
+
+    // Clock generation
+    always begin
+        #5 clk = ~clk; // 100MHz clock
+    end
+
+    // Initial block to apply test vectors
+    initial begin
+        // Initialize signals
+        clk = 0;
+        reset = 0;
+        emergency_stop = 0;
+        FLRCALL = 3'b000;
+
+        // Reset the system
+        #10 reset = 1;                                               
+        #10 reset = 0;
+
+        // Test floor requests
+        #10 FLRCALL = 3'b001;  // Request floor 1
+        #10 FLRCALL = 3'b010;  // Request floor 2
+        #10 FLRCALL = 3'b100;  // Request floor 4
+        #10 FLRCALL = 3'b101;  // Request floor 5
+
+        // Test elevator reaching the requested floor
+        #20 FLRCALL = 3'b000;  // Request floor 0
+        #20 FLRCALL = 3'b111;  // Request floor 7
+
+        // Test emergency stop
+        #10 emergency_stop = 1;
+        #10 emergency_stop = 0;
+
+        // Test multiple requests (simulate elevator movement)
+        #30 FLRCALL = 3'b011;  // Request floor 3
+        #10 FLRCALL = 3'b110;  // Request floor 6
+
+        // Finish the simulation
+        #50 $finish;
+    end
+
+    // Monitor outputs for verification
+    initial begin
+        $monitor("Time: %0t | FLRCALL: %b | FLR: %b | Door: %b | Up: %b | Down: %b | Idle: %b | Max Request: %b | Min Request: %b", 
+                  $time, FLRCALL, FLR, door, Up, Down, idle, max_request, min_request);
+    end
+
+endmodule
+
+
