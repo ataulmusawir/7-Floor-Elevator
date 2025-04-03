@@ -1,0 +1,99 @@
+
+module Elevate7(
+    input wire clk,
+    input wire reset,
+    input wire emergency_stop,
+    input wire [2:0] FLRCALL,   // Floor call input
+    output reg [1:0] door,
+    output reg [2:0] max_request,
+    output reg [2:0] min_request,
+    output reg [1:0] Up,
+    output reg [1:0] Down,
+    output reg [1:0] idle,
+    output reg [2:0] FLR,        // Current floor
+    output reg [6:0] requests    // Active requests
+);                                                                                                            
+
+    // Internal state variables
+    reg [2:0] target_floor;
+    reg moving;
+    reg [6:0] request_mask;       // Mask to track active floor requests
+
+    // Initialization
+    initial begin
+        door = 2'b00;
+        max_request = 3'b000;
+        min_request = 3'b000;
+        Up = 2'b00;
+        Down = 2'b00;
+        idle = 2'b01;
+        FLR = 3'b000;
+        requests = 7'b0000000;
+        target_floor = 3'b000;
+        moving = 0;
+        request_mask = 7'b0000000;
+    end
+
+    // Always block for state updates
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            // Reset state
+            door <= 2'b00;
+            max_request <= 3'b000;
+            min_request <= 3'b000;
+            Up <= 2'b00;
+            Down <= 2'b00;
+            idle <= 2'b01;
+            FLR <= 3'b000;
+            requests <= 7'b0000000;
+            target_floor <= 3'b000;
+            moving <= 0;
+            request_mask <= 7'b0000000;
+        end else if (emergency_stop) begin
+            // Emergency stop state
+            door <= 2'b01;  // Door opens in emergency
+            moving <= 0;    // Stop movement
+            idle <= 2'b01;  // Set idle
+        end else begin
+            // Regular operation
+
+            // Handle floor requests
+            if (FLRCALL < 7) begin
+                requests[FLRCALL] <= 1;
+                request_mask <= request_mask | (1 << FLRCALL);  // Update request mask
+            end
+
+            // Determine max and min requested floors
+            max_request <= (request_mask != 0) ? $clog2(request_mask) : FLR;
+            min_request <= (request_mask != 0) ? $clog2(request_mask & ~(1 << max_request)) : FLR;
+            target_floor <= (moving) ? target_floor : (max_request != 0 ? max_request : FLR);
+
+            // Movement logic
+            if (FLR < target_floor) begin
+                Up <= 2'b01;
+                Down <= 2'b00;
+                idle <= 2'b00;
+                moving <= 1;
+                FLR <= FLR + 1;
+            end else if (FLR > target_floor) begin
+                Up <= 2'b00;
+                Down <= 2'b01;
+                idle <= 2'b00;
+                moving <= 1;
+                FLR <= FLR - 1;
+            end else begin
+                // Reached target floor
+                Up <= 2'b00;
+                Down <= 2'b00;
+                idle <= 2'b01;
+                moving <= 0;
+                requests[FLR] <= 0;  // Reset the current floor request
+                request_mask <= request_mask & ~(1 << FLR);  // Update the request mask
+                door <= 2'b01;  // Open door
+                #10 door <= 2'b00;  // Close door after delay
+            end
+        end
+    end
+endmodule
+
+ 
